@@ -245,7 +245,7 @@ function App() {
     }`;
 
   return (
-    <div className="min-h-screen p-4 md:p-8 font-body text-ink">
+    <div className="min-h-screen p-0 md:p-8 font-body text-ink">
       <div className="mx-auto max-w-5xl">
         <section className="bg-white p-6 shadow-panel border-t-4 border-accent">
 
@@ -253,11 +253,15 @@ function App() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.25em] text-muted">Live Asset</p>
-              <h1 className="font-display text-3xl font-black md:text-5xl">{symbol}</h1>
+              <h1 className="font-display text-xl font-black md:text-5xl">{symbol}</h1>
+            </div>
+            <div className="text-center">
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-muted">User</p>
+              <p className="font-display text-xl font-black md:text-3xl">{username}</p>
             </div>
             <div className="text-right">
               <p className="text-xs font-bold uppercase tracking-[0.25em] text-muted">Price</p>
-              <p className="font-display text-4xl font-black text-ink">${toMoney(price)}</p>
+              <p className="font-display text-2xl font-black text-ink md:text-4xl">${toMoney(price)}</p>
               <p className={`text-sm font-bold ${running ? "text-positive" : "text-negative"}`}>
                 {running ? "● LIVE" : "○ STOPPED"}
               </p>
@@ -277,8 +281,7 @@ function App() {
           {/* Game Tab */}
           {activeTab === "game" && (
             <div className="mt-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                <StatCard label="User" value={username} />
+              <div className="grid grid-cols-3 gap-2 md:gap-4">
                 <StatCard
                   label="Position"
                   value={Number(portfolio.position || 0).toFixed(0)}
@@ -627,9 +630,9 @@ function PriceChart({ points, markers }) {
 
 function StatCard({ label, value, extraClass = "" }) {
   return (
-    <div className="bg-white p-4 border-l-4 border-accent">
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">{label}</p>
-      <p className={`mt-1 text-xl font-black ${extraClass}`}>{value}</p>
+    <div className="bg-white p-2 md:p-4 border-l-4 border-accent">
+      <p className="text-[0.6rem] md:text-xs font-bold uppercase tracking-[0.1em] md:tracking-[0.18em] text-muted">{label}</p>
+      <p className={`mt-0.5 text-sm md:text-xl font-black ${extraClass}`}>{value}</p>
     </div>
   );
 }
