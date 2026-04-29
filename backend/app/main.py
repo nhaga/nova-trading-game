@@ -37,6 +37,14 @@ class ParamsUpdateRequest(BaseModel):
     tick_interval: float = Field(default=1.0, ge=0.1, le=10.0)
     volatility: float = Field(default=0.008, ge=0.0, le=0.2)
     drift: float = Field(default=0.0005, ge=-0.1, le=0.1)
+    model: str = Field(default="random_walk")
+    # Stochastic drift (Ornstein-Uhlenbeck on drift)
+    drift_volatility: float = Field(default=0.001, ge=0.0, le=0.05)
+    drift_mean_reversion: float = Field(default=0.1, ge=0.0, le=1.0)
+    # Jump diffusion (Merton)
+    jump_intensity: float = Field(default=0.05, ge=0.0, le=1.0)
+    jump_mean: float = Field(default=0.0, ge=-0.5, le=0.5)
+    jump_std: float = Field(default=0.03, ge=0.0, le=0.5)
 
 
 class StartRequest(BaseModel):
@@ -60,7 +68,14 @@ class GameState:
             "tick_interval": 1.0,
             "volatility": 0.008,
             "drift": 0.0005,
+            "model": "random_walk",
+            "drift_volatility": 0.001,
+            "drift_mean_reversion": 0.1,
+            "jump_intensity": 0.05,
+            "jump_mean": 0.0,
+            "jump_std": 0.03,
         }
+        self.current_drift: float = 0.0005
         self.admin_token: str | None = None
         self.lock = asyncio.Lock()
         self._timer_task: asyncio.Task | None = None
@@ -204,6 +219,7 @@ class GameState:
                 user.trades.clear()
             self.trades.clear()
             self.price = 100.0
+        self.current_drift = self.params["drift"]
         await self.broadcast(
             {
                 "type": "admin",
@@ -215,6 +231,7 @@ class GameState:
 
     async def update_params(self, params: ParamsUpdateRequest) -> None:
         self.params = params.model_dump()
+        self.current_drift = params.drift
         await self.broadcast(
             {
                 "type": "admin",
@@ -257,7 +274,19 @@ async def price_loop() -> None:
     while True:
         await asyncio.sleep(state.params["tick_interval"])
         if state.running:
-            shock = random.gauss(state.params["drift"], state.params["volatility"])
+            model = state.params.get("model", "random_walk")
+            if model == "stochastic_drift":
+                state.current_drift += (
+                    state.params["drift_mean_reversion"] * (state.params["drift"] - state.current_drift)
+                    + state.params["drift_volatility"] * random.gauss(0, 1)
+                )
+                shock = random.gauss(state.current_drift, state.params["volatility"])
+            elif model == "jump_diffusion":
+                shock = random.gauss(state.params["drift"], state.params["volatility"])
+                if random.random() < state.params["jump_intensity"]:
+                    shock += random.gauss(state.params["jump_mean"], state.params["jump_std"])
+            else:
+                shock = random.gauss(state.params["drift"], state.params["volatility"])
             state.price = round(max(0.01, state.price * (1 + shock)), 2)
             await state.broadcast_market()
 

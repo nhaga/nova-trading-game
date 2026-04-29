@@ -29,6 +29,7 @@ function App() {
   const [allUsers, setAllUsers] = useState([]);
   const [perfFullscreen, setPerfFullscreen] = useState(false);
   const [entryPrice, setEntryPrice] = useState(0);
+  const [myTrades, setMyTrades] = useState([]);
 
   const [duration, setDuration] = useState(5);
 
@@ -36,6 +37,12 @@ function App() {
     tick_interval: 1,
     volatility: 0.008,
     drift: 0.0005,
+    model: "random_walk",
+    drift_volatility: 0.001,
+    drift_mean_reversion: 0.1,
+    jump_intensity: 0.05,
+    jump_mean: 0.0,
+    jump_std: 0.03,
   });
 
   const [markerSize, setMarkerSize] = useState(window.innerWidth < 768 ? 22 : 10);
@@ -64,6 +71,7 @@ function App() {
         tickRef.current = 0;
         setPriceSeries([{ tick: 0, price: message.price }]);
         setTradeMarkers([]);
+        setMyTrades([]);
         setFeed((prev) => [
           { id: crypto.randomUUID(), label: `Connected as ${message.username}` },
           ...prev,
@@ -93,6 +101,7 @@ function App() {
           } else {
             setEntryPrice(message.trade.price);
           }
+          setMyTrades((prev) => [message.trade, ...prev]);
         }
         setTradeMarkers((prev) =>
           [
@@ -355,6 +364,41 @@ function App() {
                   </div>
                 </div>
               </div>
+
+              <div className="bg-white p-2 md:p-4 border-l-4 border-accent">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted mb-2">My Trades</p>
+                <div className="overflow-auto max-h-48">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b-2 border-ink/10 text-muted uppercase tracking-[0.12em]">
+                        <th className="pb-1.5 text-left font-black">Time</th>
+                        <th className="pb-1.5 text-left font-black">Side</th>
+                        <th className="pb-1.5 text-right font-black">Price</th>
+                        <th className="pb-1.5 text-right font-black">Position</th>
+                        <th className="pb-1.5 text-right font-black">P/L</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myTrades.length === 0 && (
+                        <tr><td colSpan={5} className="py-2 text-muted">No trades yet.</td></tr>
+                      )}
+                      {myTrades.map((t, idx) => {
+                        const pnl = t.equity_after - 1000;
+                        const time = new Date(t.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+                        return (
+                          <tr key={idx} className="border-b border-ink/5">
+                            <td className="py-1 text-muted">{time}</td>
+                            <td className={`py-1 font-black uppercase ${t.side === "buy" ? "text-positive" : "text-negative"}`}>{t.side}</td>
+                            <td className="py-1 text-right font-semibold">${toMoney(t.price)}</td>
+                            <td className="py-1 text-right font-semibold">{t.position_after > 0 ? "+" : ""}{t.position_after}</td>
+                            <td className={`py-1 text-right font-semibold ${pnl >= 0 ? "text-positive" : "text-negative"}`}>${toMoney(pnl)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
 
@@ -442,44 +486,75 @@ function App() {
                 </div>
 
                 <div className="bg-surface p-4 border-l-4 border-accent">
-                  <p className="text-xs font-black uppercase tracking-widest text-muted">Price Parameters</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-muted">Price Model</p>
                   <div className="mt-3 grid gap-2 text-sm">
+                    {/* Model selector */}
+                    <div className="grid grid-cols-3 gap-1">
+                      {[
+                        { key: "random_walk", label: "Random Walk" },
+                        { key: "stochastic_drift", label: "Stoch. Drift" },
+                        { key: "jump_diffusion", label: "Jump Diff." },
+                      ].map(({ key, label }) => (
+                        <button
+                          key={key}
+                          className={`py-1.5 text-xs font-bold uppercase tracking-wide border-2 transition ${params.model === key ? "border-accent bg-white text-ink" : "border-ink/20 text-muted hover:border-ink/40"}`}
+                          onClick={() => setParams((p) => ({ ...p, model: key }))}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Common params */}
                     <label className="font-semibold text-ink/70">
-                      Tick Interval
-                      <input
-                        type="number"
-                        step="0.1"
-                        className="mt-1 w-full border-2 border-ink/20 bg-white px-2 py-1 outline-none focus:border-accent"
-                        value={params.tick_interval}
-                        onChange={(e) =>
-                          setParams((p) => ({ ...p, tick_interval: Number(e.target.value) }))
-                        }
-                      />
+                      Tick Interval (s)
+                      <input type="number" step="0.1" className="mt-1 w-full border-2 border-ink/20 bg-white px-2 py-1 outline-none focus:border-accent"
+                        value={params.tick_interval} onChange={(e) => setParams((p) => ({ ...p, tick_interval: Number(e.target.value) }))} />
                     </label>
                     <label className="font-semibold text-ink/70">
                       Volatility
-                      <input
-                        type="number"
-                        step="0.001"
-                        className="mt-1 w-full border-2 border-ink/20 bg-white px-2 py-1 outline-none focus:border-accent"
-                        value={params.volatility}
-                        onChange={(e) =>
-                          setParams((p) => ({ ...p, volatility: Number(e.target.value) }))
-                        }
-                      />
+                      <input type="number" step="0.001" className="mt-1 w-full border-2 border-ink/20 bg-white px-2 py-1 outline-none focus:border-accent"
+                        value={params.volatility} onChange={(e) => setParams((p) => ({ ...p, volatility: Number(e.target.value) }))} />
                     </label>
                     <label className="font-semibold text-ink/70">
-                      Drift
-                      <input
-                        type="number"
-                        step="0.0001"
-                        className="mt-1 w-full border-2 border-ink/20 bg-white px-2 py-1 outline-none focus:border-accent"
-                        value={params.drift}
-                        onChange={(e) =>
-                          setParams((p) => ({ ...p, drift: Number(e.target.value) }))
-                        }
-                      />
+                      {params.model === "random_walk" ? "Drift" : "Long-run Drift"}
+                      <input type="number" step="0.0001" className="mt-1 w-full border-2 border-ink/20 bg-white px-2 py-1 outline-none focus:border-accent"
+                        value={params.drift} onChange={(e) => setParams((p) => ({ ...p, drift: Number(e.target.value) }))} />
                     </label>
+
+                    {/* Stochastic drift params */}
+                    {params.model === "stochastic_drift" && <>
+                      <label className="font-semibold text-ink/70">
+                        Drift Volatility
+                        <input type="number" step="0.0001" className="mt-1 w-full border-2 border-ink/20 bg-white px-2 py-1 outline-none focus:border-accent"
+                          value={params.drift_volatility} onChange={(e) => setParams((p) => ({ ...p, drift_volatility: Number(e.target.value) }))} />
+                      </label>
+                      <label className="font-semibold text-ink/70">
+                        Mean Reversion Speed (κ)
+                        <input type="number" step="0.01" className="mt-1 w-full border-2 border-ink/20 bg-white px-2 py-1 outline-none focus:border-accent"
+                          value={params.drift_mean_reversion} onChange={(e) => setParams((p) => ({ ...p, drift_mean_reversion: Number(e.target.value) }))} />
+                      </label>
+                    </>}
+
+                    {/* Jump diffusion params */}
+                    {params.model === "jump_diffusion" && <>
+                      <label className="font-semibold text-ink/70">
+                        Jump Intensity (λ per tick)
+                        <input type="number" step="0.01" min="0" max="1" className="mt-1 w-full border-2 border-ink/20 bg-white px-2 py-1 outline-none focus:border-accent"
+                          value={params.jump_intensity} onChange={(e) => setParams((p) => ({ ...p, jump_intensity: Number(e.target.value) }))} />
+                      </label>
+                      <label className="font-semibold text-ink/70">
+                        Jump Mean
+                        <input type="number" step="0.001" className="mt-1 w-full border-2 border-ink/20 bg-white px-2 py-1 outline-none focus:border-accent"
+                          value={params.jump_mean} onChange={(e) => setParams((p) => ({ ...p, jump_mean: Number(e.target.value) }))} />
+                      </label>
+                      <label className="font-semibold text-ink/70">
+                        Jump Std Dev
+                        <input type="number" step="0.001" min="0" className="mt-1 w-full border-2 border-ink/20 bg-white px-2 py-1 outline-none focus:border-accent"
+                          value={params.jump_std} onChange={(e) => setParams((p) => ({ ...p, jump_std: Number(e.target.value) }))} />
+                      </label>
+                    </>}
+
                     <button
                       className="mt-2 bg-ink px-3 py-2 text-white font-black uppercase tracking-widest text-xs disabled:opacity-40"
                       disabled={!adminToken}
