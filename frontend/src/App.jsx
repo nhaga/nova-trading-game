@@ -38,6 +38,8 @@ function App() {
     drift: 0.0005,
   });
 
+  const [markerSize, setMarkerSize] = useState(window.innerWidth < 768 ? 22 : 10);
+
   const wsRef = useRef(null);
   const usernameRef = useRef("connecting...");
   const tickRef = useRef(0);
@@ -128,9 +130,15 @@ function App() {
     return () => ws.close();
   }, []);
 
+  useEffect(() => {
+    const handler = () => setMarkerSize(window.innerWidth < 768 ? 22 : 10);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
   const positionColor = useMemo(() => {
-    if (portfolio.position > 0) return "text-positive";
-    if (portfolio.position < 0) return "text-negative";
+    if (portfolio.position > 0) return "text-positive text-xs";
+    if (portfolio.position < 0) return "text-negative text-xs";
     return "text-ink";
   }, [portfolio.position]);
 
@@ -272,7 +280,7 @@ function App() {
           </div>
 
           {/* Tabs */}
-          <div className="mt-6 flex gap-0 border-b-2 border-ink/10 pb-0">
+          <div className="mt-0 md:mt-6 flex gap-0 border-b-2 border-ink/10 pb-0">
             <button className={tabClass("game")} onClick={() => setActiveTab("game")}>
               Game
             </button>
@@ -286,7 +294,7 @@ function App() {
 
           {/* Game Tab */}
           {activeTab === "game" && (
-            <div className="mt-6 space-y-6">
+            <div className="mt-2 space-y-2  md:mt-6 md:space-y-6">
               <div className="grid grid-cols-3 gap-2 md:gap-4">
                 <StatCard
                   label="Position"
@@ -296,7 +304,7 @@ function App() {
                   extraClass={positionColor}
                 />
                 <StatCard
-                  label="Unrealized P/L"
+                  label={<><span className="md:hidden">Unreal. P/L</span><span className="hidden md:inline">Unrealized P/L</span></>}
                   value={`$${toMoney(portfolio.position * (price - entryPrice))}`}
                   extraClass={portfolio.position * (price - entryPrice) >= 0 ? "text-positive" : "text-negative"}
                 />
@@ -319,11 +327,11 @@ function App() {
                     </span>
                   </div>
                 </div>
-                <PriceChart points={priceSeries} markers={tradeMarkers} />
+                <PriceChart points={priceSeries} markers={tradeMarkers} markerSize={markerSize} />
               </div>
 
-              <div className="bg-surface p-5 border-l-4 border-ink">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted">Trade Ticket</p>
+              <div className="bg-surface p-2 md:p-5 border-l-4 border-ink">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted hidden md:block">Trade Ticket</p>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button
                     className="bg-positive px-6 py-2.5 font-black text-white uppercase tracking-widest text-sm transition hover:brightness-95 disabled:opacity-40"
@@ -584,7 +592,7 @@ function App() {
   );
 }
 
-function PriceChart({ points, markers }) {
+function PriceChart({ points, markers, markerSize = 10 }) {
   const width = 1000;
   const height = 260;
   const padding = 24;
@@ -621,7 +629,7 @@ function PriceChart({ points, markers }) {
 
   return (
     <div className="border-0 border-ink/10 bg-surface p-2">
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-56 w-full">
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-52 w-full md:h-56">
         <line
           x1={padding}
           y1={height - padding}
@@ -639,10 +647,10 @@ function PriceChart({ points, markers }) {
           return (
             <g key={marker.id}>
               <rect
-                x={x - 5}
-                y={y - 5}
-                width="10"
-                height="10"
+                x={x - markerSize / 2}
+                y={y - markerSize / 2}
+                width={markerSize}
+                height={markerSize}
                 fill={isBuy ? "#0ee072" : "#fd420e"}
                 stroke="#f6f6f6"
                 strokeWidth="1.5"
