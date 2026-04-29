@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import qrCode from "../qr-code.svg";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 const WS_BASE = API_BASE.replace("http", "ws");
@@ -28,6 +29,8 @@ function App() {
   const [allUsers, setAllUsers] = useState([]);
   const [perfFullscreen, setPerfFullscreen] = useState(false);
   const [entryPrice, setEntryPrice] = useState(0);
+
+  const [duration, setDuration] = useState(5);
 
   const [params, setParams] = useState({
     tick_interval: 1,
@@ -276,6 +279,9 @@ function App() {
             <button className={tabClass("admin")} onClick={() => setActiveTab("admin")}>
               Admin
             </button>
+            <button className={tabClass("qrcode")} onClick={() => setActiveTab("qrcode")}>
+              QR Code
+            </button>
           </div>
 
           {/* Game Tab */}
@@ -284,7 +290,9 @@ function App() {
               <div className="grid grid-cols-3 gap-2 md:gap-4">
                 <StatCard
                   label="Position"
-                  value={Number(portfolio.position || 0).toFixed(0)}
+                  value={portfolio.position !== 0
+                    ? `${portfolio.position > 0 ? "+" : ""}${Number(portfolio.position).toFixed(0)} @ ${toMoney(entryPrice)}`
+                    : "Flat"}
                   extraClass={positionColor}
                 />
                 <StatCard
@@ -322,19 +330,19 @@ function App() {
                     onClick={() => sendOrder("buy")}
                     disabled={!connected || !running || portfolio.position > 0}
                   >
-                    Long
+                    Buy
                   </button>
                   <button
                     className="bg-negative px-6 py-2.5 font-black text-white uppercase tracking-widest text-sm transition hover:brightness-95 disabled:opacity-40"
                     onClick={() => sendOrder("sell")}
                     disabled={!connected || !running || portfolio.position < 0}
                   >
-                    Short
+                    Sell
                   </button>
-                  <div className="bg-white px-4 py-2.5 text-sm font-semibold text-muted border border-ink/10">
+                  <div className=" px-4 py-2.5 text-sm font-semibold text-muted ">
                     Fixed Qty: {fixedTradeQty.toLocaleString()} units
                   </div>
-                  <div className="bg-white px-4 py-2.5 text-sm font-semibold text-muted border border-ink/10">
+                  <div className="px-4 py-2.5 text-sm font-semibold text-muted">
                     1 cent move = $10 PnL
                   </div>
                 </div>
@@ -391,17 +399,36 @@ function App() {
                     </button>
                   </div>
                   <div className="mt-3 grid gap-2">
-                    <button
-                      className="bg-positive px-4 py-2 text-white font-black uppercase tracking-widest text-sm"
-                      onClick={() => callAdmin("/admin/start")}
-                    >
-                      Start Game
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        className="flex-1 bg-positive px-4 py-2 text-white font-black uppercase tracking-widest text-sm"
+                        onClick={() => callAdmin("/admin/start", "POST", { duration: duration * 60 })}
+                      >
+                        Start Game
+                      </button>
+                      <div className="flex items-center gap-1 border-2 border-ink/20 bg-white px-2">
+                        <input
+                          type="number"
+                          min="1"
+                          max="120"
+                          className="w-10 text-center text-sm font-bold outline-none"
+                          value={duration}
+                          onChange={(e) => setDuration(Number(e.target.value))}
+                        />
+                        <span className="text-xs text-muted font-semibold">min</span>
+                      </div>
+                    </div>
                     <button
                       className="bg-negative px-4 py-2 text-white font-black uppercase tracking-widest text-sm"
                       onClick={() => callAdmin("/admin/stop")}
                     >
-                      Stop + Reset Users
+                      Stop Game
+                    </button>
+                    <button
+                      className="border-2 border-negative px-4 py-2 text-negative font-black uppercase tracking-widest text-sm hover:bg-negative hover:text-white transition"
+                      onClick={() => callAdmin("/admin/reset")}
+                    >
+                      Reset Users
                     </button>
                   </div>
                 </div>
@@ -542,6 +569,13 @@ function App() {
             </div>
             )}
           </div>
+          )}
+
+          {/* QR Code Tab */}
+          {activeTab === "qrcode" && (
+            <div className="mt-6 flex justify-center">
+              <img src={qrCode} alt="QR Code" className="w-full max-w-sm" />
+            </div>
           )}
 
         </section>

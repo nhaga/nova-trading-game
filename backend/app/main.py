@@ -39,6 +39,10 @@ class ParamsUpdateRequest(BaseModel):
     drift: float = Field(default=0.0005, ge=-0.1, le=0.1)
 
 
+class StartRequest(BaseModel):
+    duration: int = Field(default=300, ge=10, le=7200)
+
+
 class StartStopResponse(BaseModel):
     running: bool
 
@@ -59,6 +63,7 @@ class GameState:
         }
         self.admin_token: str | None = None
         self.lock = asyncio.Lock()
+        self._timer_task: asyncio.Task | None = None
 
     async def register(self, websocket: WebSocket) -> str:
         await websocket.accept()
@@ -163,25 +168,47 @@ class GameState:
             }
         )
 
-    async def start(self) -> None:
+    async def start(self, duration: int = 300) -> None:
+        if self._timer_task and not self._timer_task.done():
+            self._timer_task.cancel()
         self.running = True
         await self.broadcast(
-            {"type": "admin", "message": "Game started", "running": True}
+            {"type": "admin", "message": f"Game started ({duration}s)", "running": True}
         )
+        self._timer_task = asyncio.create_task(self._auto_stop(duration))
+
+    async def _auto_stop(self, duration: int) -> None:
+        await asyncio.sleep(duration)
+        if self.running:
+            await self.stop()
 
     async def stop(self) -> None:
+        if self._timer_task and not self._timer_task.done():
+            self._timer_task.cancel()
+        self._timer_task = None
         self.running = False
+        await self.broadcast(
+            {
+                "type": "admin",
+                "message": "Game stopped",
+                "running": False,
+            }
+        )
+        await self.broadcast_market()
+
+    async def reset(self) -> None:
         async with self.lock:
             for user in self.users.values():
                 user.cash = STARTING_CASH
                 user.position = 0.0
                 user.trades.clear()
             self.trades.clear()
+            self.price = 100.0
         await self.broadcast(
             {
                 "type": "admin",
-                "message": "Game stopped and balances reset",
-                "running": False,
+                "message": "Balances, trade history and price reset",
+                "running": self.running,
             }
         )
         await self.broadcast_market()
@@ -247,9 +274,9 @@ async def admin_login(payload: AdminLoginRequest) -> AdminLoginResponse:
 
 
 @app.post("/admin/start", response_model=StartStopResponse)
-async def admin_start(token: str) -> StartStopResponse:
+async def admin_start(token: str, payload: StartRequest = StartRequest()) -> StartStopResponse:
     state.verify_admin(token)
-    await state.start()
+    await state.start(duration=payload.duration)
     return StartStopResponse(running=state.running)
 
 
@@ -258,6 +285,13 @@ async def admin_stop(token: str) -> StartStopResponse:
     state.verify_admin(token)
     await state.stop()
     return StartStopResponse(running=state.running)
+
+
+@app.post("/admin/reset")
+async def admin_reset(token: str) -> dict[str, bool]:
+    state.verify_admin(token)
+    await state.reset()
+    return {"ok": True}
 
 
 @app.post("/admin/params")
