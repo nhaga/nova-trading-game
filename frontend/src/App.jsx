@@ -50,6 +50,7 @@ function App() {
   const wsRef = useRef(null);
   const usernameRef = useRef("connecting...");
   const tickRef = useRef(0);
+  const priceRef = useRef(100);
 
   useEffect(() => {
     const ws = new WebSocket(`${WS_BASE}/ws`);
@@ -80,6 +81,7 @@ function App() {
 
       if (message.type === "market") {
         setPrice(message.price);
+        priceRef.current = message.price;
         setRunning(message.running);
         setFixedTradeQty(message.fixed_trade_qty || 1000);
         tickRef.current += 1;
@@ -122,6 +124,16 @@ function App() {
 
       if (message.type === "admin") {
         setRunning(Boolean(message.running));
+        const isReset = message.message?.toLowerCase().includes("reset");
+        const isStart = message.running === true;
+        if (isStart || isReset) {
+          const startPrice = isReset ? 100 : priceRef.current;
+          tickRef.current = 0;
+          setPriceSeries([{ tick: 0, price: startPrice }]);
+          setTradeMarkers([]);
+          setMyTrades([]);
+          setEntryPrice(0);
+        }
         setFeed((prev) => [
           { id: crypto.randomUUID(), label: `ADMIN: ${message.message}` },
           ...prev.slice(0, 13),
